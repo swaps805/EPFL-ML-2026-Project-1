@@ -34,7 +34,7 @@ def _check_inputs(y, tx, w):
 		raise ValueError("incompatible shapes for y, tx, and w")
 
 
-def meansquarederrorgd(y, tx, initialw, maxiters, gamma):
+def mean_squared_error_gd(y, tx, initialw, maxiters, gamma):
 	"""Linear regression with full-batch gradient descent."""
 	y = np.asarray(y, dtype=float)
 	tx = np.asarray(tx, dtype=float)
@@ -50,7 +50,7 @@ def meansquarederrorgd(y, tx, initialw, maxiters, gamma):
 	return w, _mse_loss(y, tx, w)
 
 
-def meansquarederrorsgd(y, tx, initialw, maxiters, gamma):
+def mean_squared_error_sgd(y, tx, initialw, maxiters, gamma):
 	"""Linear regression with stochastic gradient descent (batch size one)."""
 	y = np.asarray(y, dtype=float)
 	tx = np.asarray(tx, dtype=float)
@@ -67,7 +67,7 @@ def meansquarederrorsgd(y, tx, initialw, maxiters, gamma):
 	return w, _mse_loss(y, tx, w)
 
 
-def leastsquares(y, tx):
+def least_squares(y, tx):
 	"""Linear regression solved with the normal equations."""
 	y = np.asarray(y, dtype=float)
 	tx = np.asarray(tx, dtype=float)
@@ -75,7 +75,7 @@ def leastsquares(y, tx):
 	return w, _mse_loss(y, tx, w)
 
 
-def ridgeregression(y, tx, lambda_):
+def ridge_regression(y, tx, lambda_):
 	"""Ridge regression solved with regularized normal equations."""
 	y = np.asarray(y, dtype=float)
 	tx = np.asarray(tx, dtype=float)
@@ -87,7 +87,7 @@ def ridgeregression(y, tx, lambda_):
 	return w, _mse_loss(y, tx, w)
 
 
-def logisticregression(y, tx, initialw, maxiters, gamma):
+def logistic_regression(y, tx, initialw, maxiters, gamma):
 	"""Binary logistic regression with gradient descent."""
 	y = np.asarray(y, dtype=float)
 	tx = np.asarray(tx, dtype=float)
@@ -102,7 +102,7 @@ def logisticregression(y, tx, initialw, maxiters, gamma):
 	return w, _logistic_loss(y, tx, w)
 
 
-def reglogisticregression(y, tx, lambda_, initialw, maxiters, gamma):
+def reg_logistic_regression(y, tx, lambda_, initialw, maxiters, gamma):
 	"""Regularized binary logistic regression with gradient descent."""
 	y = np.asarray(y, dtype=float)
 	tx = np.asarray(tx, dtype=float)
