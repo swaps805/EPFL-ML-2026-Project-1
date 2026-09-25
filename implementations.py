@@ -13,7 +13,7 @@ def compute_mse(y, tx, w):
         Scalar mean squared error with the 0.5 factor used in the course.
     """
     err = y - tx.dot(w)
-    return 0.5 * np.mean(err ** 2)
+    return 0.5 * np.mean(err**2)
 
 
 def compute_stoch_gradient(y, tx, w):
@@ -56,7 +56,7 @@ def mean_squared_error_gd(y, tx, initial_w, max_iters, gamma):
     return w, compute_mse(y, tx, w)
 
 
-def stochastic_gradient_descent(y, tx, initial_w, batch_size, max_iters, gamma):
+def mean_squared_error_sgd(y, tx, initial_w, batch_size, max_iters, gamma):
     """Train linear regression using mini-batch stochastic gradient descent.
 
     A mini-batch is sampled using batch_iter at every iteration. The
