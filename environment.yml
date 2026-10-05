@@ -1,0 +1,19 @@
+# Environnement de developpement du projet 1 (CS-433).
+# Versions alignees sur grading_tests/environment.yml pour eviter les
+# divergences numeriques avec l'environnement de correction.
+# scikit-learn est volontairement absent : librairie interdite dans ce projet.
+name: MachineLearningProject
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.9
+  - numpy=1.23.1
+  - matplotlib=3.5.2
+  - seaborn=0.11.2
+  - pytest=7.1.2
+  - black=22.6.0
+  - gitpython
+  - pytest-mock
+  - tqdm
+  - ipykernel
