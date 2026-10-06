@@ -19,6 +19,9 @@ visualization only.
 - `data_exploration.py` — exploratory data analysis tools (see below).
 - `DATA_RECAP.md` — summary of what we learned about the data and its
   implications for preprocessing.
+- `cross_validation.py` — model evaluation: stratified k-fold
+  cross-validation, metrics (F1, precision, recall, accuracy) and decision
+  threshold (see below).
 - `run.py` — produces the final submission `.csv` (to be written).
 - `environment.yml` — conda environment.
 
@@ -75,6 +78,42 @@ Special codes are detected heuristically and must be checked in the
 [BRFSS 2015 codebook](https://www.cdc.gov/brfss/annual_data/2015/pdf/codebook15_llcp.pdf)
 (e.g. 88 means "none", i.e. 0 days, for PHYSHLTH).
 
+## Model evaluation
+
+All models are compared with the same protocol, implemented in
+`cross_validation.py`:
+
+- **Stratified 5-fold cross-validation** (seed 1): every fold keeps the 8.8%
+  positive rate. Each sample is scored once by a model trained on the other
+  folds.
+- **Metric: F1 score** (accuracy is misleading with 8.8% positives: predicting
+  "always negative" gives 91% accuracy). We report the mean ± standard
+  deviation of the F1 over the folds, with precision, recall and accuracy.
+- **Decision threshold:** the one maximizing F1 on the out-of-fold scores.
+
+A model is a function `fit_predict(x_train, y_train, x_val)` returning one
+score per row of `x_val`. All preprocessing statistics (means, medians,
+standard deviations, ...) must be computed inside it on `x_train` only, to
+avoid leaking information from the held-out fold.
+
+```python
+from cross_validation import cross_validate, format_result
+
+result = cross_validate(my_fit_predict, x, y)  # y in {0, 1}
+print(format_result("my model", result))
+```
+
+`python cross_validation.py` runs a sanity check on the full training set:
+
+| Model | F1 (5 folds) | Precision | Recall |
+|---|---|---|---|
+| Always positive | 0.162 ± 0.000 | 0.088 | 1.000 |
+| Random scores | 0.162 ± 0.000 | 0.088 | 1.000 |
+| Ridge, naive preprocessing (λ = 1e-6) | 0.411 ± 0.004 | 0.327 | 0.553 |
+
+"Naive preprocessing" only imputes the mean and standardizes; it is not the
+project preprocessing.
+
 ## Tests
 
 The public tests are in the course repository
@@ -86,7 +125,7 @@ pytest --github_link <path-to-this-repo-or-github-url> .
 
 ## Team workflow
 
-- Never work directly on `main`: one branch per task, merged through a pull
-  request reviewed by a teammate.
+- Never work directly on `main`: one branch per task, merged into `main`
+  through a pull request.
 - `git pull` on `main` before starting a new branch.
 - Format code with `black .` before committing.
