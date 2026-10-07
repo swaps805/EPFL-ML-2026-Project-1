@@ -22,6 +22,8 @@ visualization only.
 - `cross_validation.py` — model evaluation: stratified k-fold
   cross-validation, metrics (F1, precision, recall, accuracy) and decision
   threshold (see below).
+- `preprocessing.py` — feature preprocessing fitted on training data only
+  (see below).
 - `run.py` — produces the final submission `.csv` (to be written).
 - `environment.yml` — conda environment.
 
@@ -113,6 +115,55 @@ print(format_result("my model", result))
 
 "Naive preprocessing" only imputes the mean and standardizes; it is not the
 project preprocessing.
+
+## Preprocessing
+
+`preprocessing.py` defines a `Preprocessor` that learns all its statistics
+with `fit` on the training data only and applies them with `transform`:
+
+```python
+from preprocessing import Preprocessor, add_bias
+
+preprocessor = Preprocessor(feature_names).fit(x_train)
+tx_train = add_bias(preprocessor.transform(x_train))
+tx_test = add_bias(preprocessor.transform(x_test))
+```
+
+Steps (each one can be disabled through an option, for the ablation study):
+
+1. Drop survey administration features and raw mixed-unit features (WEIGHT2,
+   HEIGHT3; the CDC versions WTKG3, HTM4 and _BMI5 are kept).
+2. Map BRFSS special codes: "don't know" / "refused" → missing, "none" (88,
+   ...) → 0.
+3. Add missing-value indicators (identical indicators merged).
+4. Drop constant features and features missing for > 90% of the samples.
+5. Drop redundant features (|correlation| > 0.95).
+6. Impute the remaining missing values with the training median.
+7. One-hot encode categorical features (3 to 15 integer values).
+8. Standardize every column.
+
+With the default options, the 321 raw features become 619 columns.
+
+`python preprocessing.py` (about 6 minutes) compares variants where one step
+is removed at a time, with ridge regression (λ = 1e-6), stratified 5-fold
+cross-validation and the F1-maximizing threshold:
+
+| Variant | F1 (5 folds) | Precision | Recall |
+|---|---|---|---|
+| All steps | 0.420 ± 0.008 | 0.338 | 0.555 |
+| Without admin drop | 0.420 ± 0.008 | 0.341 | 0.547 |
+| Without special codes | 0.422 ± 0.005 | 0.355 | 0.520 |
+| Without missing indicators | 0.418 ± 0.006 | 0.334 | 0.558 |
+| Without sparse drop | 0.423 ± 0.007 | 0.338 | 0.564 |
+| Without redundancy drop | 0.421 ± 0.005 | 0.351 | 0.526 |
+| Without one-hot | 0.416 ± 0.007 | 0.334 | 0.552 |
+| Minimal (impute + scale only) | 0.412 ± 0.004 | 0.326 | 0.560 |
+
+The full preprocessing improves F1 from 0.412 to 0.420, but removing any
+single step changes F1 by less than the fold-to-fold variation: with a linear
+model, no single step dominates. Mapping "don't know" to missing may lose
+information ("don't know" answers are themselves associated with the target,
+see `DATA_RECAP.md`).
 
 ## Tests
 
