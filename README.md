@@ -210,6 +210,28 @@ The commands above are starting settings, not tuned optima. Least squares
 uses NumPy's direct least-squares solver to handle dependent one-hot columns
 without adding a ridge penalty.
 
+Results of the commands above (default preprocessing, stratified 5-fold,
+seed 1, F1-maximizing threshold):
+
+| Model | Settings | F1 (5 folds) | Precision | Recall | Threshold |
+|---|---|---|---|---|---|
+| logistic | γ = 0.01, 1000 iters | 0.422 ± 0.005 | 0.343 | 0.548 | 0.279 |
+| reg_logistic | λ = 1e-4, γ = 0.01, 1000 iters | 0.422 ± 0.005 | 0.343 | 0.548 | 0.279 |
+| least_squares | – | 0.420 ± 0.008 | 0.339 | 0.551 | 0.215 |
+| ridge | λ = 1e-6 | 0.420 ± 0.008 | 0.338 | 0.555 | 0.214 |
+| ridge | λ = 1e-4 | 0.420 ± 0.008 | 0.339 | 0.554 | 0.214 |
+| ridge | λ = 1e-2 | 0.420 ± 0.007 | 0.338 | 0.553 | 0.211 |
+| ridge | λ = 1 | 0.407 ± 0.005 | 0.330 | 0.533 | 0.134 |
+| mse_gd | γ = 0.01, 1000 iters | 0.419 ± 0.007 | 0.346 | 0.531 | 0.220 |
+| mse_sgd | γ = 1e-4, 100000 iters | 0.337 ± 0.092 | 0.198 | 0.620 | 0.178 |
+
+Logistic regression is best, but its lead over least squares and ridge is
+within the fold-to-fold variation. λ = 1e-4 is too small to change
+reg_logistic. Ridge is insensitive to λ up to 1e-2. SGD has not converged:
+100000 single-sample steps cover only about a third of the training rows and
+fold scores vary widely. GD scores slightly below the closed-form solution,
+so it may also need more iterations.
+
 `--evaluate-only` prints metrics without generating a submission. Compare F1
 mean/std, precision and recall; for iterative models also compare learning
 rates and iteration counts to check convergence. `--keep-sparse` disables
