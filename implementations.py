@@ -68,7 +68,10 @@ def mean_squared_error_sgd(y, tx, initial_w, max_iters, gamma):
 
 
 def least_squares(y, tx):
-    """Compute the least-squares solution using the normal equations.
+    """Compute a minimum-norm least-squares solution.
+
+    Solve directly rather than forming the normal equations: standardized
+    one-hot columns can be linearly dependent, even after redundancy removal.
 
     Args:
         y: shape=(N,). Target values.
@@ -78,9 +81,7 @@ def least_squares(y, tx):
         w: shape=(D,). Least-squares model parameters.
         loss: Scalar mean squared error at the solution.
     """
-    a = tx.T.dot(tx)
-    b = tx.T.dot(y)
-    w = np.linalg.solve(a, b)
+    w = np.linalg.lstsq(tx, y, rcond=None)[0]
     return w, compute_mse(y, tx, w)
 
 

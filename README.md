@@ -24,7 +24,7 @@ visualization only.
   threshold (see below).
 - `preprocessing.py` — feature preprocessing fitted on training data only
   (see below).
-- `run.py` — evaluates ridge/logistic models and produces a submission `.csv`
+- `run.py` — evaluates all 6 required methods and produces a submission `.csv`
   with a JSON record of its settings and selected threshold.
 - `environment.yml` — conda environment.
 
@@ -190,12 +190,25 @@ identifying the best AIcrowd submission, freeze its settings as the defaults.
 Compare candidates using the same folds, seed and preprocessing:
 
 ```bash
+python run.py --evaluate-only --model mse_gd --gamma 0.01 --max-iters 1000
+python run.py --evaluate-only --model mse_sgd --gamma 0.0001 --max-iters 100000
+python run.py --evaluate-only --model least_squares
 for value in 1e-6 1e-4 1e-2 1; do
     python run.py --evaluate-only --model ridge --lambda "$value"
 done
 python run.py --evaluate-only --model logistic --gamma 0.01 --max-iters 1000
 python run.py --evaluate-only --model reg_logistic --lambda 1e-4 --gamma 0.01 --max-iters 1000
 ```
+
+The six CLI model names are `mse_gd`, `mse_sgd`, `least_squares`, `ridge`,
+`logistic`, and `reg_logistic`. All use 0/1 training labels and the same
+preprocessing and fold split. Linear models use raw prediction scores;
+logistic models use probabilities. SGD sampling is reproducible with `--seed`.
+An SGD iteration updates from one sample, not one full pass through the data;
+its learning rate and iteration budget must be tuned separately from GD.
+The commands above are starting settings, not tuned optima. Least squares
+uses NumPy's direct least-squares solver to handle dependent one-hot columns
+without adding a ridge penalty.
 
 `--evaluate-only` prints metrics without generating a submission. Compare F1
 mean/std, precision and recall; for iterative models also compare learning
@@ -215,6 +228,13 @@ This example is not a measured improvement. All model comparisons must be run
 on the real training data before choosing final settings. No upload is performed.
 
 ## Tests
+
+Run the local pipeline regression checks (all six methods, singular least
+squares, SGD reproducibility, and submission replay) with:
+
+```bash
+python -m unittest -v test_run
+```
 
 The public tests are in the course repository
 (`ML_course/projects/project1/grading_tests`). From that folder:

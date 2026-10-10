@@ -16,6 +16,9 @@ from cross_validation import cross_validate, format_result
 from data_exploration import load_data
 from helpers import create_csv_submission
 from implementations import (
+    least_squares,
+    mean_squared_error_gd,
+    mean_squared_error_sgd,
     logistic_regression,
     reg_logistic_regression,
     ridge_regression,
@@ -24,13 +27,28 @@ from implementations import (
 from preprocessing import DEFAULT_OPTIONS, Preprocessor, add_bias
 
 
-def train_model(tx, y, model, lambda_, gamma, max_iters):
+MODELS = ("mse_gd", "mse_sgd", "least_squares", "ridge", "logistic", "reg_logistic")
+
+
+def train_model(tx, y, model, lambda_, gamma, max_iters, seed=1):
     """Train with 0/1 labels and return weights and unregularized loss."""
     if model == "ridge":
         w, loss = ridge_regression(y, tx, lambda_)
+    elif model == "least_squares":
+        w, loss = least_squares(y, tx)
     else:
         initial_w = np.zeros(tx.shape[1])
-        if model == "logistic":
+        if model == "mse_gd":
+            w, loss = mean_squared_error_gd(y, tx, initial_w, max_iters, gamma)
+        elif model == "mse_sgd":
+            # Keep the required method signature and isolate its legacy RNG.
+            state = np.random.get_state()
+            try:
+                np.random.seed(seed)
+                w, loss = mean_squared_error_sgd(y, tx, initial_w, max_iters, gamma)
+            finally:
+                np.random.set_state(state)
+        elif model == "logistic":
             w, loss = logistic_regression(y, tx, initial_w, max_iters, gamma)
         elif model == "reg_logistic":
             w, loss = reg_logistic_regression(
@@ -44,20 +62,18 @@ def train_model(tx, y, model, lambda_, gamma, max_iters):
 
 
 def predict_scores(tx, w, model):
-    """Ridge returns raw scores; logistic models return probabilities."""
+    """Linear models return raw scores; logistic models return probabilities."""
     scores = tx.dot(w)
     if not np.all(np.isfinite(scores)):
         raise ValueError("Prediction produced non-finite scores.")
-    return scores if model == "ridge" else sigmoid(scores)
+    return sigmoid(scores) if model in ("logistic", "reg_logistic") else scores
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", type=Path, default=Path("data"))
     parser.add_argument("--output", type=Path, default=Path("submission.csv"))
-    parser.add_argument(
-        "--model", choices=("ridge", "logistic", "reg_logistic"), default="ridge"
-    )
+    parser.add_argument("--model", choices=MODELS, default="ridge")
     parser.add_argument("--lambda", dest="lambda_", type=float, default=1e-6)
     parser.add_argument("--gamma", type=float, default=0.01)
     parser.add_argument("--max-iters", type=int, default=1000)
@@ -67,29 +83,37 @@ def main(argv=None):
         "--keep-sparse", action="store_true", help="disable sparse-feature removal"
     )
     parser.add_argument(
-        "--threshold", type=float,
+        "--threshold",
+        type=float,
         help="reuse a previously selected threshold and skip cross-validation",
     )
     parser.add_argument(
-        "--evaluate-only", action="store_true",
+        "--evaluate-only",
+        action="store_true",
         help="print cross-validation metrics without training a final model or writing CSV",
     )
     args = parser.parse_args(argv)
     if not np.isfinite(args.lambda_) or args.lambda_ < 0:
         parser.error("--lambda must be finite and non-negative")
     if args.model == "ridge" and args.lambda_ == 0:
-        parser.error("ridge requires --lambda > 0 because one-hot columns are dependent")
+        parser.error(
+            "ridge requires --lambda > 0 because one-hot columns are dependent"
+        )
     if not np.isfinite(args.gamma) or args.gamma <= 0 or args.max_iters < 1:
-        parser.error("--gamma must be finite and positive; --max-iters must be positive")
-    if args.k < 2 or args.seed < 0:
-        parser.error("--k must be at least 2 and --seed must be non-negative")
+        parser.error(
+            "--gamma must be finite and positive; --max-iters must be positive"
+        )
+    if args.k < 2 or not 0 <= args.seed < 2**32:
+        parser.error("--k must be at least 2 and --seed must be in [0, 2**32)")
     if args.threshold is not None and not np.isfinite(args.threshold):
         parser.error("--threshold must be finite")
     if args.evaluate_only and args.threshold is not None:
         parser.error("--evaluate-only cannot be combined with --threshold")
     for name in ("x_train.csv", "y_train.csv", "x_test.csv"):
         if not (args.data / name).is_file():
-            parser.error(f"Missing {args.data / name}; put the competition CSVs in --data")
+            parser.error(
+                f"Missing {args.data / name}; put the competition CSVs in --data"
+            )
 
     # Read the CSVs directly so a stale exploration cache cannot change the run.
     data = load_data(args.data, use_cache=False)
@@ -97,11 +121,13 @@ def main(argv=None):
     options = dict(DEFAULT_OPTIONS)
     if args.keep_sparse:
         options["max_missing"] = None
-    print(f"{len(y)} training rows, {len(data['x_test'])} test rows; model={args.model}")
+    print(
+        f"{len(y)} training rows, {len(data['x_test'])} test rows; model={args.model}"
+    )
 
     def fit_model(tx, labels):
         return train_model(
-            tx, labels, args.model, args.lambda_, args.gamma, args.max_iters
+            tx, labels, args.model, args.lambda_, args.gamma, args.max_iters, args.seed
         )
 
     def fit_predict(x_train, y_train, x_val):
@@ -141,11 +167,26 @@ def main(argv=None):
 
     # The replay command fixes the selected threshold and skips CV next time.
     command = [
-        "python", "run.py", "--data", str(args.data), "--output", str(args.output),
-        "--model", args.model, "--lambda", repr(args.lambda_),
-        "--gamma", repr(args.gamma), "--max-iters", str(args.max_iters),
-        "--k", str(args.k), "--seed", str(args.seed),
-        "--threshold", repr(threshold),
+        "python",
+        "run.py",
+        "--data",
+        str(args.data),
+        "--output",
+        str(args.output),
+        "--model",
+        args.model,
+        "--lambda",
+        repr(args.lambda_),
+        "--gamma",
+        repr(args.gamma),
+        "--max-iters",
+        str(args.max_iters),
+        "--k",
+        str(args.k),
+        "--seed",
+        str(args.seed),
+        "--threshold",
+        repr(threshold),
     ]
     if args.keep_sparse:
         command.append("--keep-sparse")
