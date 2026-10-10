@@ -1,5 +1,6 @@
 # Data (download from AIcrowd, too large for git)
-data/
+data/*
+!data/.gitkeep
 *.csv
 
 # Course public tests (use them from the course repo, do not commit)
