@@ -24,7 +24,8 @@ visualization only.
   threshold (see below).
 - `preprocessing.py` — feature preprocessing fitted on training data only
   (see below).
-- `run.py` — produces the final submission `.csv` (to be written).
+- `run.py` — evaluates ridge/logistic models and produces a submission `.csv`
+  with a JSON record of its settings and selected threshold.
 - `environment.yml` — conda environment.
 
 ## Setup
@@ -164,6 +165,54 @@ single step changes F1 by less than the fold-to-fold variation: with a linear
 model, no single step dominates. Mapping "don't know" to missing may lose
 information ("don't know" answers are themselves associated with the target,
 see `DATA_RECAP.md`).
+
+## Generate a submission and compare models
+
+Put the three competition CSVs in `data/`, activate the environment, then run:
+
+```bash
+python run.py
+```
+
+This uses ridge (lambda = 1e-6) with the default preprocessing. It selects an
+F1-maximizing threshold from stratified 5-fold out-of-fold predictions (seed 1),
+fits preprocessing and the model on all training rows, and writes
+`submission.csv` with `Id,Prediction` and labels in {-1, 1}. Test rows retain
+their original order. CSVs are read directly, bypassing the exploration cache.
+This is a reproducible baseline, not yet a confirmed best AIcrowd submission.
+
+`submission.csv.json` records settings, validation scores, threshold, NumPy
+version, CSV SHA-256, and a `reproduce_command`. Run that command to retrain
+with the same threshold without repeating CV. Keep the code revision, original
+data, environment, CSV and JSON together for each submitted candidate. After
+identifying the best AIcrowd submission, freeze its settings as the defaults.
+
+Compare candidates using the same folds, seed and preprocessing:
+
+```bash
+for value in 1e-6 1e-4 1e-2 1; do
+    python run.py --evaluate-only --model ridge --lambda "$value"
+done
+python run.py --evaluate-only --model logistic --gamma 0.01 --max-iters 1000
+python run.py --evaluate-only --model reg_logistic --lambda 1e-4 --gamma 0.01 --max-iters 1000
+```
+
+`--evaluate-only` prints metrics without generating a submission. Compare F1
+mean/std, precision and recall; for iterative models also compare learning
+rates and iteration counts to check convergence. `--keep-sparse` disables
+sparse-feature removal, corresponding to the documented ablation variant.
+These runs refit preprocessing separately on each training fold. Threshold
+selection and model selection use validation labels, so these are tuning
+scores; reserve an untouched holdout for an independent final estimate.
+
+To generate a candidate CSV, omit `--evaluate-only` and specify its settings:
+
+```bash
+python run.py --model ridge --lambda 1e-4 --keep-sparse --output submissions/ridge.csv
+```
+
+This example is not a measured improvement. All model comparisons must be run
+on the real training data before choosing final settings. No upload is performed.
 
 ## Tests
 
