@@ -1,0 +1,45 @@
+{
+  "model": "logistic",
+  "lambda": 1e-06,
+  "gamma": 0.15,
+  "max_iters": 2000,
+  "k": 5,
+  "seed": 1,
+  "preprocessing": {
+    "drop_admin": true,
+    "map_special_codes": true,
+    "missing_indicators": true,
+    "max_missing": 0.9,
+    "redundancy_threshold": 0.95,
+    "one_hot": true,
+    "max_categories": 15
+  },
+  "threshold": 0.1997967326231761,
+  "training_loss": 0.21999746871057133,
+  "validation": {
+    "metrics": {
+      "tp": 15898,
+      "fp": 28943,
+      "fn": 13077,
+      "tn": 270217,
+      "accuracy": 0.8719429503100858,
+      "precision": 0.35454160255123657,
+      "recall": 0.5486798964624676,
+      "f1": 0.43074672157797766
+    },
+    "fold_f1": [
+      0.4326890471346219,
+      0.4220519427680206,
+      0.4374412041392286,
+      0.4293407866930261,
+      0.4321397143437352
+    ],
+    "f1_mean": 0.4307325390157265,
+    "f1_std": 0.005061698922412932
+  },
+  "training_rows": 328135,
+  "prediction_rows": 109379,
+  "numpy_version": "1.23.1",
+  "csv_sha256": "2313c1dec74287faa71cb31c83d37c28043e3d53c4d3da141d4daacf65f76052",
+  "reproduce_command": "python run.py --data data --output submission.csv --model logistic --lambda 1e-06 --gamma 0.15 --max-iters 2000 --k 5 --seed 1 --threshold 0.1997967326231761"
+}

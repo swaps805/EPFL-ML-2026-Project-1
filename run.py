@@ -1,6 +1,7 @@
 """Evaluate a model, train on all training rows, and write an AIcrowd CSV.
 
-Defaults are the documented ridge baseline, not a confirmed competition winner.
+Defaults are the final model (logistic regression, gamma = 0.15,
+2000 iterations; see tune.py), selected for the AIcrowd submission.
 Only the Python standard library and NumPy are used.
 """
 
@@ -73,10 +74,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", type=Path, default=Path("data"))
     parser.add_argument("--output", type=Path, default=Path("submission.csv"))
-    parser.add_argument("--model", choices=MODELS, default="ridge")
+    parser.add_argument("--model", choices=MODELS, default="logistic")
     parser.add_argument("--lambda", dest="lambda_", type=float, default=1e-6)
-    parser.add_argument("--gamma", type=float, default=0.01)
-    parser.add_argument("--max-iters", type=int, default=1000)
+    parser.add_argument("--gamma", type=float, default=0.15)
+    parser.add_argument("--max-iters", type=int, default=2000)
     parser.add_argument("--k", type=int, default=5)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument(

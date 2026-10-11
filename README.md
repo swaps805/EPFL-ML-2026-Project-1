@@ -176,12 +176,15 @@ Put the three competition CSVs in `data/`, activate the environment, then run:
 python run.py
 ```
 
-This uses ridge (lambda = 1e-6) with the default preprocessing. It selects an
+This uses the selected final model, logistic regression (gamma = 0.15,
+2000 iterations, see "Tuning the iterative methods"), with the default
+preprocessing. It selects an
 F1-maximizing threshold from stratified 5-fold out-of-fold predictions (seed 1),
 fits preprocessing and the model on all training rows, and writes
 `submission.csv` with `Id,Prediction` and labels in {-1, 1}. Test rows retain
 their original order. CSVs are read directly, bypassing the exploration cache.
-This is a reproducible baseline, not yet a confirmed best AIcrowd submission.
+Out-of-fold F1 is 0.431 ± 0.005 (precision 0.355, recall 0.549, threshold
+0.1998); 14921 of the 109379 test rows are predicted positive.
 
 `submission.csv.json` records settings, validation scores, threshold, NumPy
 version, CSV SHA-256, and a `reproduce_command`. Run that command to retrain
