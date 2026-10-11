@@ -26,6 +26,8 @@ visualization only.
   (see below).
 - `run.py` — evaluates all 6 required methods and produces a submission `.csv`
   with a JSON record of its settings and selected threshold.
+- `tune.py` — step-size, iteration and regularization sweep for the
+  iterative methods (see below).
 - `environment.yml` — conda environment.
 
 ## Setup
@@ -207,8 +209,9 @@ logistic models use probabilities. SGD sampling is reproducible with `--seed`.
 An SGD iteration updates from one sample, not one full pass through the data;
 its learning rate and iteration budget must be tuned separately from GD.
 The commands above are starting settings, not tuned optima. Least squares
-uses NumPy's direct least-squares solver to handle dependent one-hot columns
-without adding a ridge penalty.
+solves the normal equations with a pseudo-inverse (`numpy.linalg.lstsq` is
+not allowed) to handle dependent one-hot columns without adding a ridge
+penalty.
 
 Results of the commands above (default preprocessing, stratified 5-fold,
 seed 1, F1-maximizing threshold):
@@ -225,12 +228,51 @@ seed 1, F1-maximizing threshold):
 | mse_gd | γ = 0.01, 1000 iters | 0.419 ± 0.007 | 0.346 | 0.531 | 0.220 |
 | mse_sgd | γ = 1e-4, 100000 iters | 0.337 ± 0.092 | 0.198 | 0.620 | 0.178 |
 
-Logistic regression is best, but its lead over least squares and ridge is
-within the fold-to-fold variation. λ = 1e-4 is too small to change
-reg_logistic. Ridge is insensitive to λ up to 1e-2. SGD has not converged:
-100000 single-sample steps cover only about a third of the training rows and
-fold scores vary widely. GD scores slightly below the closed-form solution,
-so it may also need more iterations.
+With these starting settings, logistic regression is best, but its lead over
+least squares and ridge is within the fold-to-fold variation. λ = 1e-4 is
+too small to change reg_logistic. Ridge is insensitive to λ up to 1e-2. The
+iterative methods were then tuned with `tune.py`.
+
+### Tuning the iterative methods
+
+`python tune.py` (several hours; `--groups` runs a subset) uses the same
+folds, seed, preprocessing and threshold rule, and evaluates each setting at
+several iteration counts. The step sizes follow from the data: the largest
+eigenvalue of tx^T tx / N is about 42, so GD on the MSE needs γ < 2/42 ≈ 0.047
+and logistic regression γ < 2/(42/4) ≈ 0.19.
+
+| Model | Settings | Iters | F1 (5 folds) | Precision | Recall | Train loss |
+|---|---|---|---|---|---|---|
+| logistic | γ = 0.05 | 1000 | 0.429 ± 0.006 | 0.351 | 0.550 | 0.2228 |
+| logistic | γ = 0.05 | 4000 | 0.431 ± 0.006 | 0.357 | 0.543 | 0.2199 |
+| logistic | γ = 0.15 | 500 | 0.430 ± 0.006 | 0.358 | 0.537 | 0.2211 |
+| logistic | γ = 0.15 | 2000 | 0.431 ± 0.005 | 0.355 | 0.549 | 0.2198 |
+| logistic | γ = 0.15 | 4000 | 0.431 ± 0.006 | 0.356 | 0.545 | 0.2197 |
+| reg_logistic | λ = 1e-3, γ = 0.15 | 2000 | 0.431 ± 0.006 | 0.354 | 0.549 | 0.2208 |
+| reg_logistic | λ = 1e-2, γ = 0.15 | 2000 | 0.427 ± 0.006 | 0.351 | 0.546 | 0.2404 |
+| reg_logistic | λ = 1e-1, γ = 0.15 | 2000 | 0.415 ± 0.004 | 0.330 | 0.560 | 0.3749 |
+| mse_gd | γ = 0.04 | 1000 | 0.420 ± 0.007 | 0.343 | 0.542 | 0.0331 |
+| mse_gd | γ = 0.04 | 4000 | 0.420 ± 0.007 | 0.341 | 0.547 | 0.0331 |
+| mse_sgd | γ = 2e-6 | 3000000 | 0.418 ± 0.007 | 0.329 | 0.571 | 0.0332 |
+| mse_sgd | γ = 5e-6 | 1000000 | 0.418 ± 0.007 | 0.345 | 0.528 | 0.0332 |
+| mse_sgd | γ = 5e-6 | 3000000 | 0.419 ± 0.007 | 0.342 | 0.539 | 0.0336 |
+| mse_sgd | γ = 1e-5 | 3000000 | diverged | | | |
+| mse_sgd | γ = 1e-4 | 262500 | diverged | | | |
+
+- Logistic regression with γ = 0.01 had not converged: γ = 0.15 converges in
+  about 2000 iterations (the loss barely changes up to 4000) and raises F1
+  from 0.422 to 0.431, more than the fold-to-fold variation.
+- Regularization does not help: λ = 1e-3 matches unregularized logistic
+  regression and larger λ lowers F1. With 328000 rows for 620 columns the
+  model hardly overfits.
+- MSE GD reaches the least-squares loss and F1 within 1000 iterations.
+- Single-sample SGD is only stable for γ < 2/||x_n||^2 for every row. Most
+  rows have ||x_n||^2 ≈ 500, but the largest is about 330000, so γ above
+  about 6e-6 eventually diverges (γ = 1e-5: training loss above its starting
+  value after 1 million steps, overflow by 3 million).
+  With γ = 5e-6, SGD matches GD.
+- A setting is reported as diverged when its training loss ends above the
+  loss at w = 0.
 
 `--evaluate-only` prints metrics without generating a submission. Compare F1
 mean/std, precision and recall; for iterative models also compare learning
