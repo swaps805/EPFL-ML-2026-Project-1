@@ -1,0 +1,228 @@
+\documentclass[10pt,conference,compsocconf]{IEEEtran}
+
+\usepackage[hidelinks]{hyperref}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{booktabs}
+
+\begin{document}
+\title{Predicting Coronary Heart Disease from the BRFSS Survey\\with Regularized Linear Models}
+
+\author{
+  Swapnil Bag, Sam Lee, Valentin Marbach\\
+  \textit{CS-433 Machine Learning, EPFL, Switzerland}
+}
+
+\maketitle
+
+\begin{abstract}
+We predict whether a person has coronary heart disease (MICHD) from 321
+answers to the 2015 Behavioral Risk Factor Surveillance System (BRFSS) survey,
+using only linear models implemented from scratch with NumPy. The data is
+heavily imbalanced (8.8\% positives), mostly missing (45\% of the entries) and
+full of survey-specific codes. We build a preprocessing pipeline driven by an
+exploratory analysis, evaluate every choice with stratified 5-fold
+cross-validation and the F1 score, and compare the six required methods. A
+logistic regression with a tuned step size and an F1-optimal decision
+threshold reaches a cross-validated F1 of 0.431 and an F1 of 0.440 (accuracy
+0.875) on the AIcrowd test set.
+\end{abstract}
+
+\section{Introduction}
+
+Cardiovascular disease is the leading cause of death worldwide, and
+self-reported health surveys are a cheap source of risk information. The task
+is a binary classification problem: 328{,}135 training respondents with a
+label \texttt{\_MICHD} in $\{-1,1\}$ and 109{,}379 test respondents. Two
+properties of the data drive the whole approach. First, only 8.8\% of the
+respondents are positive: predicting ``no disease'' for everyone gives 91.2\%
+accuracy but is useless, so we optimize and report the F1 score (predicting
+everyone positive gives $F_1 = 0.162$, our floor). Second, the features are raw
+survey answers, with special codes, skipped questions and redundant derived
+variables, so careful preprocessing is needed before any linear model.
+
+We contribute an exploratory analysis that motivates each preprocessing
+step, a leak-free evaluation protocol, an ablation study, and a comparison of
+the six required methods with step sizes derived from the loss curvature.
+
+\section{Data Analysis}
+\label{sec:data}
+
+\textbf{Missing values.} 44.8\% of all entries are missing; 99 features are
+missing for more than 90\% of the respondents (optional modules such as vision
+or asthma). Missingness is informative: some questions are only asked
+depending on a previous answer. For instance, the diabetes module is only
+asked to diabetics, and the positive rate is 22\% when it is filled versus 8\%
+when it is missing.
+
+\textbf{Special codes.} BRFSS encodes ``don't know'' as 7, 77, 777, ...,
+``refused'' as 9, 99, ..., and ``none'' as 88 or 888 (e.g.\
+\texttt{PHYSHLTH}~$=88$ means zero days of poor health)~\cite{codebook}. Left
+as numbers, a linear model reads ``refused'' (9) as worse than ``poor
+health'' (5). We detect these codes automatically: a candidate code is
+flagged in a feature when it appears while the value just below it does not
+(the code is isolated from the regular range).
+
+\textbf{Useless and redundant features.} Six features are constant, and the
+survey administration features (state, interview date, record numbers,
+sampling weights) describe the interview rather than the person. Raw weight
+and height mix imperial and metric units (metric values are stored as
+$9000+$value), while the CDC provides clean computed versions (weight in kg,
+height in m, BMI). We also found 26 pairs of near-duplicate features
+($|\rho| > 0.95$), such as three encodings of age.
+
+\textbf{Signal.} The known cardiovascular risk factors are clearly visible:
+the positive rate grows from 0.5\% (age 18--24) to 22\% (80+) and from 2\%
+(excellent general health) to 32\% (poor), and reaches 37\% after a stroke.
+However, the strongest single correlation with the target is only about
+0.25: the model has to combine many weak signals.
+
+\section{Methods}
+
+\subsection{Evaluation protocol}
+
+All results use the same stratified 5-fold cross-validation (seed 1): each
+fold keeps the 8.8\% positive rate, and every respondent is scored once by a
+model that never saw it. The preprocessing is fitted on the four training
+folds only, so no statistic of the held-out fold leaks into training. Because
+of the imbalance, we do not threshold at 0.5: the decision threshold is the
+one maximizing F1 on the out-of-fold scores (one sort and a cumulative sum
+give the F1 of every threshold). We report the mean and standard deviation of
+F1 over the folds.
+
+\subsection{Preprocessing}
+
+Following Section~\ref{sec:data}, the pipeline applies, in order:
+(1)~drop the administration and raw mixed-unit features;
+(2)~map special codes, ``none'' to 0 and ``don't know''/``refused'' to
+missing;
+(3)~add a 0/1 indicator for each feature that is sometimes missing (identical
+indicators are merged);
+(4)~drop constant features and features missing for more than 90\% of the
+training rows;
+(5)~drop the second feature of each pair with $|\rho| > 0.95$;
+(6)~impute the remaining missing values with the training median;
+(7)~one-hot encode integer features with 3 to 15 distinct values;
+(8)~standardize every column and add a bias.
+The 321 raw features become 619 columns: 125 numerical, 291 one-hot and 203
+missing-value indicators.
+
+\subsection{Models}
+
+We use the six required methods: gradient descent (GD) and stochastic
+gradient descent (SGD, one sample per step) on the mean squared error (MSE),
+least squares, ridge regression, and logistic regression without and with
+$L_2$ regularization. Labels are mapped to $\{0,1\}$; linear models output a
+real score and logistic models a probability. Least squares solves the normal
+equations with a pseudo-inverse, because one-hot columns of the same feature
+can be linearly dependent.
+
+\textbf{Step sizes.} GD on a smooth loss converges for $\gamma < 2/L$, with
+$L$ the largest eigenvalue of the Hessian. For the MSE,
+$L = \lambda_{\max}(X^\top X/N) \approx 42$ on our features, hence
+$\gamma < 0.047$. For the logistic loss the Hessian is bounded by
+$X^\top X/(4N)$, hence $\gamma < 0.19$. For single-sample SGD, a step is
+stable only if $\gamma < 2/\|x_n\|^2$ for every row; most rows have
+$\|x_n\|^2 \approx 500$ but the largest reaches about $330{,}000$, so any
+$\gamma$ above $6\cdot 10^{-6}$ eventually diverges. We tune $\gamma$, the
+number of iterations and $\lambda$ inside these ranges.
+
+\section{Results}
+
+\textbf{Preprocessing ablation.} Table~\ref{tab:ablation} removes one step at
+a time (ridge, $\lambda = 10^{-6}$). The full pipeline improves F1 from 0.412
+(mean imputation and scaling only) to 0.420. Removing any single step changes
+F1 by less than the fold-to-fold standard deviation: with a linear model, the
+gain comes from the combination of steps, one-hot encoding and missing
+indicators being the most useful. Mapping ``don't know'' to missing slightly
+lowers F1, which suggests that not knowing an answer is itself informative.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Preprocessing ablation (ridge, 5-fold F1).}
+  \label{tab:ablation}
+  \small\setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lcc}
+    \toprule
+    Variant & F1 & Prec. / Rec. \\
+    \midrule
+    All steps & $0.420 \pm 0.008$ & 0.338 / 0.555 \\
+    \quad w/o admin drop & $0.420 \pm 0.008$ & 0.341 / 0.547 \\
+    \quad w/o special codes & $0.422 \pm 0.005$ & 0.355 / 0.520 \\
+    \quad w/o missing indicators & $0.418 \pm 0.006$ & 0.334 / 0.558 \\
+    \quad w/o sparse drop & $0.423 \pm 0.007$ & 0.338 / 0.564 \\
+    \quad w/o redundancy drop & $0.421 \pm 0.005$ & 0.351 / 0.526 \\
+    \quad w/o one-hot & $0.416 \pm 0.007$ & 0.334 / 0.552 \\
+    Impute + scale only & $0.412 \pm 0.004$ & 0.326 / 0.560 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Comparison of the methods.} Table~\ref{tab:models} reports each
+method with its best setting. All methods share the full preprocessing and the
+same folds. The squared-loss methods (GD, SGD, least squares, ridge) reach the
+same solution and an F1 of about 0.420; GD converges within 1000 iterations
+($\gamma = 0.04$) and SGD matches it with $\gamma = 5\cdot 10^{-6}$ and
+3 million steps, whereas $\gamma = 10^{-5}$ diverges, as predicted above.
+Ridge is insensitive to $\lambda$ up to $10^{-2}$ and degrades for
+$\lambda = 1$. Logistic regression is the best method: with the initial step
+size $\gamma = 0.01$ it had not converged (F1 0.422); $\gamma = 0.15$,
+close to the theoretical bound, converges in about 2000 iterations and reaches
+$0.431 \pm 0.005$, a gain larger than the fold-to-fold variation.
+Regularization does not help ($\lambda \geq 10^{-2}$ lowers F1): with
+328{,}000 rows for 620 parameters, the model hardly overfits.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Best setting of each method (5-fold F1).}
+  \label{tab:models}
+  \small\setlength{\tabcolsep}{4pt}
+  \begin{tabular}{llc}
+    \toprule
+    Method & Setting & F1 \\
+    \midrule
+    Always positive & -- & $0.162 \pm 0.000$ \\
+    MSE GD & $\gamma = 0.04$, 1000 it. & $0.420 \pm 0.007$ \\
+    MSE SGD & $\gamma = 5\cdot10^{-6}$, 3M it. & $0.419 \pm 0.007$ \\
+    Least squares & -- & $0.420 \pm 0.008$ \\
+    Ridge & $\lambda = 10^{-4}$ & $0.420 \pm 0.008$ \\
+    Logistic & $\gamma = 0.15$, 2000 it. & $\mathbf{0.431 \pm 0.005}$ \\
+    Reg. logistic & $\lambda{=}10^{-3}$, $\gamma{=}0.15$, 2000 & $0.431 \pm 0.006$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Final model.} We retrain the logistic regression ($\gamma = 0.15$,
+2000 iterations) on all the training data and predict positive when the
+probability exceeds the cross-validated threshold 0.20. The low threshold
+compensates for the class imbalance: it trades accuracy for recall
+(precision 0.355, recall 0.549 in cross-validation). On the AIcrowd test set
+the submission obtains an \textbf{F1 of 0.440} and an accuracy of 0.875,
+consistent with the cross-validated estimate (0.431), which shows that the
+protocol did not overfit the threshold or the hyperparameters.
+
+\section{Discussion}
+
+The main limitation is the linearity of the models: all methods plateau
+between 0.42 and 0.43, and neither regularization nor any single
+preprocessing step moves this ceiling. Interactions between risk factors
+(e.g.\ age with general health), polynomial features of the ordinal answers,
+and keeping ``don't know'' as a separate category are natural next steps.
+The threshold and hyperparameters are selected on the out-of-fold scores we
+report, but the test score shows that this bias is small.
+
+\section{Summary}
+
+Data-driven preprocessing and a leak-free, imbalance-aware evaluation matter
+as much as the model. A logistic regression with a curvature-based step size
+and an F1-optimal threshold reaches F1 0.440 on the test set; \texttt{run.py}
+in our repository regenerates this submission exactly.
+
+\begin{thebibliography}{1}
+\bibitem{codebook}
+Centers for Disease Control and Prevention, ``Behavioral Risk Factor
+Surveillance System: 2015 codebook report,''
+\url{https://www.cdc.gov/brfss/annual_data/2015/pdf/codebook15_llcp.pdf}.
+\end{thebibliography}
+
+\end{document}
